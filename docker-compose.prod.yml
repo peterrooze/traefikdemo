@@ -23,13 +23,14 @@ services:
 
   traefik:
     command:
-      - "--api.dashboard=true"
-      - "--api.debug=true"
+      - "--api.dashboard=false"
+      - "--api.debug=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.http.address=:80"
       - "--entrypoints.https.address=:443"
-      - "--log.level=DEBUG"
+      - "--entrypoints.http.http.redirections.entryPoint.to=https"
+      - "--entrypoints.http.http.redirections.entryPoint.scheme=https"
       - "--providers.docker.network=traefik"
     networks:
       - traefik
