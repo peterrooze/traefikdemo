@@ -1,0 +1,46 @@
+services:
+  mp:
+    ports:
+      - "8080:8080"
+    environment:
+      MP_HTTP_BASE_URL: "https://local.dommehut.xyz"
+      MP_WS_BASE_URL: "wss://local.dommehut.xyz"
+      MP_CORS_ORIGIN: "*"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mp.rule=Host(`local.dommehut.xyz`)"
+      - "traefik.http.routers.mp.tls.certresolver=cloudflare"
+      - "traefik.http.routers.mp.entrypoints=https"
+      - "traefik.http.services.mp.loadbalancer.server.port=8080"
+    networks:
+      - traefik
+
+  grafana:
+    environment:
+      - GF_SERVER_ROOT_URL=http://grafana.local.dommehut.xyz
+    labels:
+      - "traefik.http.routers.grafana.rule=Host(`grafana.local.dommehut.xyz`)"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.entrypoints=https"
+    networks:
+      - traefik
+
+  traefik:
+    command:
+      - "--api.dashboard=true"
+      - "--api.debug=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.http.address=:80"
+      - "--entrypoints.https.address=:443"
+      - "--log.level=DEBUG"
+      - "--providers.docker.network=traefik"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
+
+
+

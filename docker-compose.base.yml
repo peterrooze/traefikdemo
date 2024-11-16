@@ -1,0 +1,119 @@
+services:
+  mp:
+    build:
+      dockerfile: ./docker/Dockerfile.mp
+      context: ..
+    image: ghcr.io/kasper573/mp:latest
+    restart: always
+    depends_on:
+      - pg
+    environment:
+      MP_PORT: 8080
+      MP_DATABASE_URL: "postgres://mp:mp@pg:5432/mp"
+      MP_AUTH_SECRET_KEY: ${MP_AUTH_SECRET_KEY}
+      MP_AUTH_PUBLISHABLE_KEY: ${MP_AUTH_PUBLISHABLE_KEY}
+      MP_BUILD_VERSION: ${MP_BUILD_VERSION}
+    labels:
+      - "traefik.enable=true"
+    networks:
+      - traefik
+
+  migrations:
+    build:
+      dockerfile: ./docker/Dockerfile.migrations
+      context: ..
+    image: ghcr.io/kasper573/mp-migrations:latest
+    environment:
+      MP_DATABASE_URL: "postgres://mp:mp@pg:5432/mp"
+    networks:
+      - traefik
+  
+  pg:
+    image: postgres:16.4
+    restart: always
+    environment:
+      POSTGRES_USER: mp
+      POSTGRES_PASSWORD: mp
+      POSTGRES_DB: mp
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - traefik
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.entrypoints=https"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.tls=true"
+    networks:
+      - traefik
+
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    networks:
+      - traefik
+
+  grafana:
+    image: grafana/grafana:10.4.12
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.entrypoints=https"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.tls=true"
+    networks:
+      - traefik
+
+  traefik:
+    image: traefik:v3.2
+    ports:
+      - "80:80"
+      - "443:443"
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/traefik.yml:ro
+      - ./traefik/acme.json:/acme.json
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`traefik-dashboard.local.dommehut.xyz`)"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}"
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik-dashboard.local.dommehut.xyz`)"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=local.dommehut.xyz"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.dommehut.xyz"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+    environment:
+      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_API_KEY}
+
+
+networks:
+  traefik:
+    name: traefik
+    external: true
+
+
+volumes:
+  postgres-data:
+  grafana-storage: 
